@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-software-repair"
+version = "0.1.0"
+description = "AI-driven software debugging and automated program repair using fault localization, contextual patch generation, and test-guided validation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = []          # core pipeline is standard-library only (reproducibility)
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+api = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2"]
+
+[project.scripts]
+aisr = "aisr.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
