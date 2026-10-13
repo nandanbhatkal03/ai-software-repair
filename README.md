@@ -1,4 +1,4 @@
-# ai-software-repair
+# Intelligent Automated Software Debugging and Program Repair using Fault Localization and Test-Guided Patch Validation
 
 AI-driven software debugging and automated program repair using fault localization, contextual patch generation, and test-guided validation.
 
