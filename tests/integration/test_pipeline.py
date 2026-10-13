@@ -50,3 +50,8 @@ def test_no_failing_tests_is_a_clean_error(tmp_path):
     f = fixed / "src/main/java/demo/Calc.java"; f.write_text(f.read_text().replace("x >= 0", "x > 0"))
     with pytest.raises(AisrError, match="no failing test"):
         Pipeline(Config(workspace_root=tmp_path / "ws"), FakeMaven()).localize(fixed)
+
+def test_cost_measurements_recorded(pipe):
+    _, summary = pipe.repair(FIX, "template", top_k=3)
+    assert set(summary["timing_s"]) == {"localization", "generation", "validation"}
+    assert summary["validation_runs"] > 0

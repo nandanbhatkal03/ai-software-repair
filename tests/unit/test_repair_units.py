@@ -108,3 +108,53 @@ def test_docker_command_is_isolated(tmp_path):
     cmd = DockerRunner(Config()).build_command(["mvn", "test"], tmp_path)
     assert cmd[:3] == ["docker", "run", "--rm"] and "--network" in cmd and cmd[cmd.index("--network") + 1] == "none"
     assert "--memory" in cmd and "--cpus" in cmd and cmd[-2:] == ["mvn", "test"]
+
+def test_pit_mutation_score_parsing(tmp_path):
+    from aisr.testing.runner import CommandResult
+    from aisr.validation.mutation import pit_mutation_score
+    class R:
+        def run(self, cmd, cwd, timeout):
+            d = Path(cwd) / "target/pit-reports/2026"; d.mkdir(parents=True, exist_ok=True)
+            (d / "mutations.xml").write_text("<mutations><mutation detected='true' status='KILLED'/>"
+                "<mutation detected='false' status='SURVIVED'/><mutation detected='true' status='KILLED'/>"
+                "<mutation detected='false' status='NO_COVERAGE'/></mutations>")
+            return CommandResult(0, "")
+    assert pit_mutation_score(tmp_path, "demo.Calc", runner=R()) == 0.5
+
+def test_validator_target_class():
+    from aisr.validation.pipeline import PatchValidator
+    v = PatchValidator.__new__(PatchValidator); v.source_dirs = ("src/main/java",)
+    assert v._target_class("src/main/java/demo/Calc.java") == "demo.Calc"
+    assert v._target_class("other/X.java") is None
+
+def test_ollama_client_against_local_server():
+    import json, threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from aisr.repair.llm.ollama import OllamaBackend
+    seen = {}
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            seen["path"] = self.path; seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            out = json.dumps({"response": "[]", "prompt_eval_count": 12, "eval_count": 3}).encode()
+            self.send_response(200); self.send_header("Content-Length", str(len(out))); self.end_headers(); self.wfile.write(out)
+        def log_message(self, *a): pass
+    srv = HTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        b = OllamaBackend("m", f"http://127.0.0.1:{srv.server_port}")
+        assert b.complete("hi") == "[]"
+        assert seen["path"] == "/api/generate" and seen["body"]["stream"] is False and seen["body"]["model"] == "m"
+        assert seen["body"]["options"]["seed"] == 42                      # reproducibility
+        assert b.stats["calls"] == 1 and b.stats["prompt_tokens"] == 12 and b.stats["output_tokens"] == 3
+    finally:
+        srv.shutdown()
+
+def test_ollama_down_is_a_clean_error():
+    from aisr.core.exceptions import ModelBackendError
+    from aisr.repair.llm.ollama import OllamaBackend
+    with pytest.raises(ModelBackendError):
+        OllamaBackend("m", "http://127.0.0.1:9", timeout=2).complete("x")
+
+def test_missing_tool_is_reported_not_raised(tmp_path):
+    from aisr.testing.runner import LocalRunner
+    r = LocalRunner().run(["definitely-not-a-real-tool"], tmp_path, 5)
+    assert r.returncode == 127 and "command not found or not executable" in r.output
