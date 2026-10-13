@@ -6,32 +6,34 @@ AI-driven software debugging and automated program repair using fault localizati
 
 ## Status
 
-| Pipeline stage | Module | State |
+| Area | Module | State |
 |---|---|---|
-| 1 Repository import / workspace isolation | `aisr.repository` | implemented, unit-tested |
-| 2 Baseline test execution (Maven/Gradle, Surefire XML) | `aisr.testing` | implemented; tested with a fake Maven, **not yet run against real Maven** |
-| 3-4 Static (method locator) / dynamic (per-test JaCoCo) analysis | `aisr.analysis` | implemented; JaCoCo XML parser unit-tested, **real JaCoCo run pending** |
-| 5 Fault localization: Ochiai, Tarantula, Jaccard, DStar + roll-up | `aisr.localization` | implemented, formulas verified by hand-computed tests |
-| 6 Context construction | `aisr.context` | implemented |
-| 7 Patch generation: template baseline + LLM (Ollama) behind a backend interface | `aisr.repair` | implemented; LLM path tested with a scripted fake model only |
-| 8 Staged validation (syntax → compile → failing tests → regression → static → mutation) | `aisr.validation` | syntax/compile/tests/regression implemented; static & PIT are hooks |
-| 9 Ranking (transparent weighted baseline) | `aisr.ranking` | implemented |
-| 10 Explainable report | `aisr.explainability` | implemented |
-| Metrics (Top-N, EXAM, tie-aware rank) / experiment recorder | `aisr.experiments` | implemented |
-| Defects4J adapter, FastAPI + React dashboard, PIT/PMD wiring | - | **not built yet** (see docs/CORRECTIONS.md, item 11) |
+| Repository import, workspace isolation | `aisr.repository` | implemented, tested |
+| Test execution (Maven, Gradle, **Defects4J**) | `aisr.testing` | implemented; tested with fake `mvn`/`defects4j`, **not yet run against real ones** |
+| Per-test coverage (JaCoCo, Cobertura) | `aisr.analysis` | parsers tested; real runs pending |
+| Fault localization: Ochiai, Tarantula, Jaccard, DStar | `aisr.localization` | implemented, formulas hand-verified |
+| Context, template + LLM (Ollama) patch generation | `aisr.context`, `aisr.repair` | implemented; LLM tested with a scripted model and a local HTTP stand-in, **not a real model** |
+| Staged validation, ranking, explainable report | `aisr.validation/ranking/explainability` | implemented; PIT/static analysis are optional, untested against the real tools |
+| Evaluation: metrics, ground truth, batch study, cost/memory | `aisr.experiments` | implemented; **no benchmark results exist yet** |
+| CLI and local web dashboard / REST API | `aisr.cli`, `aisr.api` | implemented, API tested |
+| Docker sandbox (`--network none`) | `DockerRunner` | command construction tested; never run against a live daemon |
+
+See `docs/project/TRACEABILITY.md` for objectives -> deliverables and `docs/CORRECTIONS.md` for changes to the original spec.
 
 ## Quick start
 
 ```bash
 pip install -e '.[dev]'
-pytest                       # 30 tests, no Java needed (uses a fake Maven runner)
+pytest                       # ~55 tests, no Java needed (fake Maven / fake Defects4J runners)
 
 # real project (needs JDK + Maven + network/cache for dependencies)
 aisr detect   path/to/buggy-project
 aisr baseline path/to/buggy-project
 aisr localize path/to/buggy-project --metric ochiai --top 10
 aisr repair   path/to/buggy-project --generator template      # Baseline B (no AI)
-aisr repair   path/to/buggy-project --generator llm           # needs `ollama serve` + a pulled code model
+aisr repair   path/to/buggy-project --config D                 # FL + context + LLM + validation + ranking (needs ollama)
+aisr d4j-eval --project Lang --bugs 1,3-5 --repair B,D         # batch study on Defects4J (see docs/SETUP_UBUNTU.md)
+aisr serve                                                     # dashboard at http://127.0.0.1:8000 (pip install -e '.[api]')
 ```
 
 Configuration is by environment variables (see `.env.example`). The core has **no third-party runtime dependencies**.

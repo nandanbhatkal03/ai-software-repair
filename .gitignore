@@ -1,4 +1,4 @@
-# --- Python ---
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -10,46 +10,35 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
-
-# --- Virtual environments ---
+# Virtual environments
 .venv/
 venv/
 env/
-
-# --- Secrets / local config (keep .env.example tracked) ---
+# Secrets / local config (keep .env.example)
 .env
 .env.*
 !.env.example
-
-# --- Project runtime output ---
+# Runtime output
 workspaces/
 experiments/runs/
 experiments/results/
 repair-report.md
 report.md
-
-# --- Models (weights are large; keep only the README) ---
+# Models and benchmark checkouts
 models/*
 !models/README.md
-
-# --- Benchmarks (checked-out buggy projects are large and regenerable) ---
-benchmarks/defects4j/
 benchmarks/checkouts/
-benchmarks/*/work/
-
-# --- Java / Maven / Gradle build output ---
+benchmarks/defects4j/
+# Java build output
 target/
 .gradle/
 *.class
 *.jar
 *.exec
-
-# --- IDEs ---
+# IDEs / OS
 .vscode/
 .idea/
 *.iml
-
-# --- OS junk ---
 .DS_Store
 Thumbs.db
 *.swp
