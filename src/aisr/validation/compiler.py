@@ -30,6 +30,10 @@ def syntax_ok(replacement: str, original: str | None = None) -> bool:
 
 def compile_ok(project: Path, build_system: str, runner: CommandRunner | None = None, config: Config | None = None) -> tuple[bool, str]:
     cfg, runner = config or Config(), runner or LocalRunner()
-    cmd = ["mvn", "-B", "-q", "compile", "test-compile"] if build_system == "maven" else ["gradle", "classes", "testClasses"]
+    if build_system == "defects4j":
+        from ..testing.defects4j import compile_command
+        cmd = compile_command()
+    else:
+        cmd = ["mvn", "-B", "-q", "compile", "test-compile"] if build_system == "maven" else ["gradle", "classes", "testClasses"]
     r = runner.run(cmd, project, cfg.test_timeout)
     return r.returncode == 0 and not r.timed_out, r.output[-4000:]

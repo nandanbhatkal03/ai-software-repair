@@ -38,6 +38,13 @@ class PatchValidator:
         self.static_cmd, self.run_mutation, self.source_dirs = static_cmd, run_mutation, source_dirs
         self._static_before = None
 
+    def _target_class(self, rel_file: str) -> str | None:
+        """src/main/java/demo/Calc.java -> demo.Calc (PIT -DtargetClasses)."""
+        for d in self.source_dirs:
+            if rel_file.startswith(d.rstrip("/") + "/"):
+                return rel_file[len(d.rstrip("/")) + 1:].removesuffix(".java").replace("/", ".")
+        return None
+
     def validate(self, patch: Patch, keep_dir: bool = False) -> ValidationResult:
         t0, res = time.time(), ValidationResult(patch.id)
         def stop(stage: str) -> ValidationResult:
@@ -70,7 +77,13 @@ class PatchValidator:
                 res.stages["static"] = True
             else:
                 res.stages["static"] = None
-            res.stages["mutation"] = None                # PIT is wired in mutation.py; enabled per-experiment
+            if self.run_mutation and self.bs == "maven":
+                from .mutation import pit_mutation_score
+                target = self._target_class(patch.file)
+                res.mutation_score = pit_mutation_score(proj, target, runner=self.tr.runner) if target else None
+                res.stages["mutation"] = res.mutation_score is not None
+            else:
+                res.stages["mutation"] = None
             res.duration_s = time.time() - t0
             return res
         finally:

@@ -1,6 +1,6 @@
 """Builds the execution (coverage) matrix: for every test, which statements it executed."""
 from __future__ import annotations
-import shutil
+import re, shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from ...core.config import Config
@@ -42,8 +42,31 @@ class CoverageCollector:
         return ["mvn", "-B", "-q", f"{j}:prepare-agent", "test", "-Dmaven.test.failure.ignore=true",
                 f"-Dtest={selector}", "-DfailIfNoTests=false", f"{j}:report"]
 
-    def collect_one(self, project: Path, selector: str) -> CoverageReport:
+    def _instrument_file(self, project: Path) -> str:
+        """Defects4J: instrument every class loaded by the triggering tests (classes.relevant), NOT just the classes
+        modified by the fix (Defects4J's default), which would leak the fault location into the localiser."""
+        f = project / "instrument_classes.txt"
+        if not f.exists():
+            from ...testing.defects4j import export_command
+            out = self.runner.run(export_command("classes.relevant"), project, self.config.test_timeout).output
+            classes = [l.strip() for l in out.splitlines() if re.fullmatch(r"[\w.$]+", l.strip())]
+            if not classes:
+                raise CoverageError("could not export classes.relevant from Defects4J")
+            f.write_text("\n".join(classes) + "\n")
+        return f.name
+
+    def collect_one(self, project: Path, selector: str, build_system: str = "maven") -> CoverageReport:
         project = Path(project)
+        if build_system == "defects4j":
+            from .cobertura import parse_cobertura_xml
+            from ...testing.defects4j import coverage_command
+            for stale in ("coverage.xml", "cobertura.ser"):
+                (project / stale).unlink(missing_ok=True)
+            self.runner.run(coverage_command(selector, self._instrument_file(project)), project, self.config.test_timeout)
+            xml = project / "coverage.xml"
+            if not xml.exists():
+                raise CoverageError(f"no Cobertura report produced for {selector}")
+            return parse_cobertura_xml(xml)
         for d in ("target/site/jacoco", "target/jacoco.exec"):
             p = project / d
             shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
@@ -53,7 +76,8 @@ class CoverageCollector:
             raise CoverageError(f"no JaCoCo report produced for {selector}")
         return parse_jacoco_xml(xml)
 
-    def collect(self, project: Path, tests: dict[str, Outcome], max_tests: int | None = None) -> ExecutionMatrix:
+    def collect(self, project: Path, tests: dict[str, Outcome], max_tests: int | None = None,
+                build_system: str = "maven") -> ExecutionMatrix:
         """`tests` maps 'Class#method' -> baseline outcome (from the baseline test run).
         Failing tests are always kept; passing tests are truncated first if max_tests is set."""
         failing = [t for t, o in tests.items() if o in (Outcome.FAIL, Outcome.ERROR)]
@@ -63,7 +87,7 @@ class CoverageCollector:
         m = ExecutionMatrix()
         for tid in failing + passing:
             try:
-                m.add(tid, tests[tid], self.collect_one(project, tid))
+                m.add(tid, tests[tid], self.collect_one(project, tid, build_system))
             except CoverageError:
                 continue          # a test that produces no coverage cannot contribute evidence
         return m

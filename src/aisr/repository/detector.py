@@ -12,6 +12,12 @@ class ProjectInfo:
 
 def detect_project(root: Path) -> ProjectInfo:
     root = Path(root)
+    if (root / "defects4j.build.properties").exists():
+        from ..testing.defects4j import read_properties
+        props = read_properties(root)
+        return ProjectInfo("defects4j", "java",
+                           (props.get("d4j.dir.src.classes", "src/main/java"),),
+                           (props.get("d4j.dir.src.tests", "src/test/java"),))
     if (root / "pom.xml").exists():
         build = "maven"
     elif (root / "build.gradle").exists() or (root / "build.gradle.kts").exists():

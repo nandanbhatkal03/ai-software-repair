@@ -36,7 +36,9 @@ class Workspace:
             raise RepositoryError(f"not a directory: {source}")
         ws = cls(Path(workspace_root) / f"{source.name}-{uuid.uuid4().hex[:8]}")
         ws.root.mkdir(parents=True)
-        shutil.copytree(source, ws.baseline, ignore=_IGNORE)
+        # A Defects4J checkout is relocatable (.defects4j.config holds only pid/vid); only drop VCS metadata there.
+        ignore = shutil.ignore_patterns(".git") if (source / "defects4j.build.properties").exists() else _IGNORE
+        shutil.copytree(source, ws.baseline, ignore=ignore)
         shutil.copytree(ws.baseline, ws.work)
         _make_readonly(ws.baseline)
         return ws
